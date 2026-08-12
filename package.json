@@ -1,0 +1,17 @@
+{
+  "name": "cannon-plus",
+  "version": "0.1.0",
+  "description": "Cannon+ strict and systems-oriented superset of Cannon.",
+  "type": "module",
+  "bin": {
+    "cannon-plus": "./src/cli.js"
+  },
+  "exports": "./src/index.js",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}
