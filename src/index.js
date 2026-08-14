@@ -32,12 +32,10 @@ export function transform(source) {
   const typeBindings = new Map();
   const lines = source.split(/\r?\n/);
   const output = [];
-
   for (let index = 0; index < lines.length; index += 1) {
     const original = lines[index];
     const lineNumber = index + 1;
     let line = original;
-
     const functionMatch = line.match(/^(\s*)fn\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)\s*(?:->\s*([A-Za-z_$][\w$]*))?\s*\{/);
     if (functionMatch) {
       const [, indent, name, paramsText, returnType] = functionMatch;
@@ -50,18 +48,14 @@ export function transform(source) {
           const [, paramName, type] = typed;
           if (!BUILTIN_TYPES.has(type)) diagnostics.push({ line: lineNumber, column: original.indexOf(type) + 1, message: `Unknown Cannon+ type '${type}'` });
           loweredParams.push(paramName);
-        } else if (/^[A-Za-z_$][\w$]*$/.test(param)) {
-          loweredParams.push(param);
-        } else if (param) {
-          diagnostics.push({ line: lineNumber, column: original.indexOf(param) + 1, message: `Invalid Cannon+ parameter '${param}'` });
-        }
+        } else if (/^[A-Za-z_$][\w$]*$/.test(param)) loweredParams.push(param);
+        else if (param) diagnostics.push({ line: lineNumber, column: original.indexOf(param) + 1, message: `Invalid Cannon+ parameter '${param}'` });
       }
       if (returnType && !BUILTIN_TYPES.has(returnType)) diagnostics.push({ line: lineNumber, column: original.indexOf(returnType) + 1, message: `Unknown Cannon+ return type '${returnType}'` });
       line = `${indent}fn ${name}(${loweredParams.join(', ')}) {`;
       output.push(line);
       continue;
     }
-
     const declaration = line.match(/^(\s*)(let|const)?\s*([A-Za-z_$][\w$]*)\s*:\s*([A-Za-z_$][\w$]*)\s*=\s*(.+)$/);
     if (declaration) {
       const [, indent, keyword = '', name, type, expression] = declaration;
@@ -73,7 +67,6 @@ export function transform(source) {
       output.push(line);
       continue;
     }
-
     const assignment = line.match(/^(\s*)([A-Za-z_$][\w$]*)\s*=\s*(.+)$/);
     if (assignment) {
       const [, , name, expression] = assignment;
@@ -83,20 +76,16 @@ export function transform(source) {
         if (!compatible(expected, actual)) diagnostics.push({ line: lineNumber, column: original.indexOf(expression) + 1, message: `Type mismatch: '${name}' is ${expected} but the assigned literal is ${actual}` });
       }
     }
-
     output.push(line);
   }
-
   if (diagnostics.length) {
     const first = diagnostics[0];
     const error = new CannonPlusError(first.message, first.line, first.column);
     error.diagnostics = diagnostics;
     throw error;
   }
-
   return { code: output.join('\n'), types: Object.fromEntries(typeBindings) };
 }
 
-export function check(source) {
-  return transform(source);
-}
+export function check(source) { return transform(source); }
+export * from './systems.js';
