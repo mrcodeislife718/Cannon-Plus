@@ -97,7 +97,7 @@ export function transform(source) {
         else if (param) diagnostics.push({ line: lineNumber, column: original.indexOf(param) + 1, message: `Invalid Cannon+ parameter '${param}'` });
       }
       const returnType = returnTypeRaw?.trim();
-      if (returnType && !annotationIsSupported(returnType)) diagnostics.push({ line: lineNumber, column: original.indexOf(returnType) + 1, message: `Unknown Cannon+ type '${returnType}'` });
+      if (returnType && !annotationIsSupported(returnType)) diagnostics.push({ line: lineNumber, column: original.indexOf(returnType) + 1, message: `Unknown Cannon+ return type '${returnType}'` });
       line = `${indent}fn ${name}(${loweredParams.join(', ')}) {`;
       output.push(line);
       continue;
