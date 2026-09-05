@@ -42,12 +42,13 @@ function displayAnnotation(type) {
   return type.name ?? type.kind;
 }
 
-function compatible(expected, actual) {
+function compatible(expected, actual, registry) {
   if (!actual) return true;
-  const expectedType = parseType(expected);
-  if (actual === 'null') return expectedType.kind === 'nullable';
-  if (expected === 'number' && ['i8','i16','i32','i64','u8','u16','u32','u64','f32','f64'].includes(actual)) return true;
-  return checkAssignable(actual, expected).ok;
+  const parsed = parseType(expected);
+  const resolved = registry.resolve(parsed);
+  if (actual === 'null') return resolved.kind === 'nullable';
+  if (displayAnnotation(resolved) === 'number' && ['i8','i16','i32','i64','u8','u16','u32','u64','f32','f64'].includes(actual)) return true;
+  return checkAssignable(actual, resolved).ok;
 }
 
 function splitParameters(text) {
@@ -188,7 +189,8 @@ export function transform(source) {
       }
       const returnType = returnTypeRaw?.trim();
       if (returnType && !annotationIsSupported(returnType, registry)) diagnostics.push({ line: lineNumber, column: original.indexOf(returnType) + 1, message: `Unknown Cannon+ return type '${returnType}'` });
-      line = `${indent}${asyncPrefix}fn ${name}(${loweredParams.join(', ')}) {`;
+      const suffix = original.slice(functionMatch[0].length);
+      line = `${indent}${asyncPrefix}fn ${name}(${loweredParams.join(', ')}) {${suffix}`;
       output.push(line);
       continue;
     }
@@ -198,7 +200,7 @@ export function transform(source) {
       const type = typeRaw.trim();
       if (!annotationIsSupported(type, registry)) diagnostics.push({ line: lineNumber, column: original.indexOf(type) + 1, message: `Unknown Cannon+ type '${type}'` });
       const actual = inferLiteralType(expression);
-      if (annotationIsSupported(type, registry) && !compatible(type, actual)) diagnostics.push({ line: lineNumber, column: original.indexOf(expression) + 1, message: `Type mismatch: '${name}' is ${type} but the assigned literal is ${actual}` });
+      if (annotationIsSupported(type, registry) && !compatible(type, actual, registry)) diagnostics.push({ line: lineNumber, column: original.indexOf(expression) + 1, message: `Type mismatch: '${name}' is ${type} but the assigned literal is ${actual}` });
       typeBindings.set(name, type);
       line = `${indent}${keyword ? `${keyword} ` : ''}${name} = ${expression}`;
       output.push(line);
@@ -210,7 +212,7 @@ export function transform(source) {
       if (typeBindings.has(name)) {
         const actual = inferLiteralType(expression);
         const expected = typeBindings.get(name);
-        if (!compatible(expected, actual)) diagnostics.push({ line: lineNumber, column: original.indexOf(expression) + 1, message: `Type mismatch: '${name}' is ${expected} but the assigned literal is ${actual}` });
+        if (!compatible(expected, actual, registry)) diagnostics.push({ line: lineNumber, column: original.indexOf(expression) + 1, message: `Type mismatch: '${name}' is ${expected} but the assigned literal is ${actual}` });
       }
     }
     output.push(line);
