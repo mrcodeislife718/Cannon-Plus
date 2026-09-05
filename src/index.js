@@ -91,13 +91,13 @@ export function transform(source) {
         const param = rawParam.trim();
         const typed = parseTypedParameter(param);
         if (typed) {
-          if (!annotationIsSupported(typed.type)) diagnostics.push({ line: lineNumber, column: original.indexOf(typed.type) + 1, message: `Unknown or unsupported Cannon+ type '${typed.type}'` });
+          if (!annotationIsSupported(typed.type)) diagnostics.push({ line: lineNumber, column: original.indexOf(typed.type) + 1, message: `Unknown Cannon+ type '${typed.type}'` });
           loweredParams.push(typed.name);
         } else if (/^[A-Za-z_$][\w$]*$/.test(param)) loweredParams.push(param);
         else if (param) diagnostics.push({ line: lineNumber, column: original.indexOf(param) + 1, message: `Invalid Cannon+ parameter '${param}'` });
       }
       const returnType = returnTypeRaw?.trim();
-      if (returnType && !annotationIsSupported(returnType)) diagnostics.push({ line: lineNumber, column: original.indexOf(returnType) + 1, message: `Unknown or unsupported Cannon+ return type '${returnType}'` });
+      if (returnType && !annotationIsSupported(returnType)) diagnostics.push({ line: lineNumber, column: original.indexOf(returnType) + 1, message: `Unknown Cannon+ type '${returnType}'` });
       line = `${indent}fn ${name}(${loweredParams.join(', ')}) {`;
       output.push(line);
       continue;
@@ -106,7 +106,7 @@ export function transform(source) {
     if (declaration) {
       const [, indent, keyword = '', name, typeRaw, expression] = declaration;
       const type = typeRaw.trim();
-      if (!annotationIsSupported(type)) diagnostics.push({ line: lineNumber, column: original.indexOf(type) + 1, message: `Unknown or unsupported Cannon+ type '${type}'` });
+      if (!annotationIsSupported(type)) diagnostics.push({ line: lineNumber, column: original.indexOf(type) + 1, message: `Unknown Cannon+ type '${type}'` });
       const actual = inferLiteralType(expression);
       if (annotationIsSupported(type) && !compatible(type, actual)) diagnostics.push({ line: lineNumber, column: original.indexOf(expression) + 1, message: `Type mismatch: '${name}' is ${type} but the assigned literal is ${actual}` });
       typeBindings.set(name, type);
