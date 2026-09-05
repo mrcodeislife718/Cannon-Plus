@@ -50,17 +50,20 @@ function integerLiteralFits(value, target) {
   return value >= min && value <= max;
 }
 
-function compatible(expected, literal, registry) {
-  if (!literal) return true;
-  const resolved = registry.resolve(parseType(expected));
+function literalCompatibleWithResolvedType(literal, resolved) {
   if (literal.type === 'null') return resolved.kind === 'nullable';
+  if (resolved.kind === 'nullable') return literalCompatibleWithResolvedType(literal, resolved.inner);
   if (literal.type === 'integer-literal') {
     if (resolved.kind === 'int') return integerLiteralFits(literal.value, resolved);
-    if (displayAnnotation(resolved) === 'number') return true;
-    return false;
+    return displayAnnotation(resolved) === 'number';
   }
   if (displayAnnotation(resolved) === 'number' && ['i8','i16','i32','i64','u8','u16','u32','u64','f32','f64'].includes(literal.type)) return true;
   return checkAssignable(literal.type, resolved).ok;
+}
+
+function compatible(expected, literal, registry) {
+  if (!literal) return true;
+  return literalCompatibleWithResolvedType(literal, registry.resolve(parseType(expected)));
 }
 
 function literalTypeName(literal) {
