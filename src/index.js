@@ -11,13 +11,13 @@ export class CannonPlusError extends Error {
   }
 }
 
-function inferLiteralType(text) {
+function inferLiteral(text) {
   const value = text.trim();
-  if (value === 'null') return 'null';
-  if (/^[-+]?\d+$/.test(value)) return 'i32';
-  if (/^[-+]?(?:\d+\.\d*|\d*\.\d+)$/.test(value)) return 'f64';
-  if (/^(true|false)$/.test(value)) return 'bool';
-  if (/^(['"]).*\1$/s.test(value)) return 'string';
+  if (value === 'null') return { type: 'null', value: null };
+  if (/^[-+]?\d+$/.test(value)) return { type: 'integer-literal', value: BigInt(value) };
+  if (/^[-+]?(?:\d+\.\d*|\d*\.\d+)$/.test(value)) return { type: 'f64', value: Number(value) };
+  if (/^(true|false)$/.test(value)) return { type: 'bool', value: value === 'true' };
+  if (/^(['"]).*\1$/s.test(value)) return { type: 'string', value };
   return null;
 }
 
@@ -42,13 +42,30 @@ function displayAnnotation(type) {
   return type.name ?? type.kind;
 }
 
-function compatible(expected, actual, registry) {
-  if (!actual) return true;
-  const parsed = parseType(expected);
-  const resolved = registry.resolve(parsed);
-  if (actual === 'null') return resolved.kind === 'nullable';
-  if (displayAnnotation(resolved) === 'number' && ['i8','i16','i32','i64','u8','u16','u32','u64','f32','f64'].includes(actual)) return true;
-  return checkAssignable(actual, resolved).ok;
+function integerLiteralFits(value, target) {
+  if (target.kind !== 'int') return false;
+  const bits = BigInt(target.bits);
+  const min = target.signed ? -(1n << (bits - 1n)) : 0n;
+  const max = target.signed ? (1n << (bits - 1n)) - 1n : (1n << bits) - 1n;
+  return value >= min && value <= max;
+}
+
+function compatible(expected, literal, registry) {
+  if (!literal) return true;
+  const resolved = registry.resolve(parseType(expected));
+  if (literal.type === 'null') return resolved.kind === 'nullable';
+  if (literal.type === 'integer-literal') {
+    if (resolved.kind === 'int') return integerLiteralFits(literal.value, resolved);
+    if (displayAnnotation(resolved) === 'number') return true;
+    return false;
+  }
+  if (displayAnnotation(resolved) === 'number' && ['i8','i16','i32','i64','u8','u16','u32','u64','f32','f64'].includes(literal.type)) return true;
+  return checkAssignable(literal.type, resolved).ok;
+}
+
+function literalTypeName(literal) {
+  if (!literal) return 'unknown';
+  return literal.type === 'integer-literal' ? 'integer literal' : literal.type;
 }
 
 function splitParameters(text) {
@@ -199,8 +216,8 @@ export function transform(source) {
       const [, indent, keyword = '', name, typeRaw, expression] = declaration;
       const type = typeRaw.trim();
       if (!annotationIsSupported(type, registry)) diagnostics.push({ line: lineNumber, column: original.indexOf(type) + 1, message: `Unknown Cannon+ type '${type}'` });
-      const actual = inferLiteralType(expression);
-      if (annotationIsSupported(type, registry) && !compatible(type, actual, registry)) diagnostics.push({ line: lineNumber, column: original.indexOf(expression) + 1, message: `Type mismatch: '${name}' is ${type} but the assigned literal is ${actual}` });
+      const literal = inferLiteral(expression);
+      if (annotationIsSupported(type, registry) && !compatible(type, literal, registry)) diagnostics.push({ line: lineNumber, column: original.indexOf(expression) + 1, message: `Type mismatch: '${name}' is ${type} but the assigned literal is ${literalTypeName(literal)}` });
       typeBindings.set(name, type);
       line = `${indent}${keyword ? `${keyword} ` : ''}${name} = ${expression}`;
       output.push(line);
@@ -210,9 +227,9 @@ export function transform(source) {
     if (assignment) {
       const [, , name, expression] = assignment;
       if (typeBindings.has(name)) {
-        const actual = inferLiteralType(expression);
+        const literal = inferLiteral(expression);
         const expected = typeBindings.get(name);
-        if (!compatible(expected, actual, registry)) diagnostics.push({ line: lineNumber, column: original.indexOf(expression) + 1, message: `Type mismatch: '${name}' is ${expected} but the assigned literal is ${actual}` });
+        if (!compatible(expected, literal, registry)) diagnostics.push({ line: lineNumber, column: original.indexOf(expression) + 1, message: `Type mismatch: '${name}' is ${expected} but the assigned literal is ${literalTypeName(literal)}` });
       }
     }
     output.push(line);
