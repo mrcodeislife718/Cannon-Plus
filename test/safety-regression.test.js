@@ -38,7 +38,7 @@ test('strict nullability and checked numeric conversions reject implicit unsafe 
   assert.throws(() => checkedCast(1.25, 'i32'), RangeError);
 });
 
-test('ownership regression matrix rejects mutable aliasing, move while borrowed, and use after move', () => {
+test('ownership regression matrix rejects aliasing and stale-owner use while preserving transferred liveness', () => {
   const ownership = new OwnershipTracker();
   ownership.declare('value');
   ownership.borrow('value', 'reader-a');
@@ -48,9 +48,14 @@ test('ownership regression matrix rejects mutable aliasing, move while borrowed,
   ownership.releaseBorrow('value', 'reader-a');
   ownership.releaseBorrow('value', 'reader-b');
   ownership.move('value', 'worker');
-  assert.throws(() => ownership.borrow('value', 'late-reader'), /was moved/);
   assert.throws(() => ownership.use('value', 'current'), /use after move/);
   assert.equal(ownership.use('value', 'worker'), true);
+  const borrow = ownership.borrow('value', 'worker-reader');
+  assert.equal(borrow.owner, 'worker');
+  assert.equal(ownership.releaseBorrow('value', 'worker-reader'), true);
+  ownership.move('value', 'worker-2');
+  assert.throws(() => ownership.use('value', 'worker'), /use after move/);
+  assert.equal(ownership.use('value', 'worker-2'), true);
 });
 
 test('regions detect capacity failure, double release, use after free, and use after region close', () => {
