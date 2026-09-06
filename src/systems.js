@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+export { OwnershipTracker } from './ownership.js';
 
 export const BuiltinType = Object.freeze({
   bool: { kind: 'bool', bits: 1 },
@@ -54,22 +55,6 @@ export function checkedCast(value, targetType) {
   }
   if (target.kind === 'float') { const n = Number(value); if (!Number.isFinite(n)) throw new RangeError(`value is not finite ${displayType(target)}`); return n; }
   throw new TypeError(`unsupported checked cast target: ${displayType(target)}`);
-}
-
-export class OwnershipTracker {
-  constructor() { this.values = new Map(); }
-  declare(name, { owner = 'current', region = null, movable = true } = {}) { if (this.values.has(name)) throw new Error(`ownership already declared: ${name}`); const state = { name, owner, region, movable, moved: false, borrows: new Map() }; this.values.set(name, state); return structuredClone(state); }
-  borrow(name, borrower, { mutable = false } = {}) {
-    const state = this.#state(name); this.#assertLive(state);
-    if (mutable && state.borrows.size) throw new Error(`cannot mutably borrow '${name}' while borrowed`);
-    if (!mutable && [...state.borrows.values()].some((b) => b.mutable)) throw new Error(`cannot borrow '${name}' while mutably borrowed`);
-    state.borrows.set(borrower, { mutable, at: Date.now() }); return { name, borrower, mutable };
-  }
-  releaseBorrow(name, borrower) { return this.#state(name).borrows.delete(borrower); }
-  move(name, newOwner) { const state = this.#state(name); this.#assertLive(state); if (!state.movable) throw new Error(`'${name}' is not movable`); if (state.borrows.size) throw new Error(`cannot move '${name}' while borrowed`); state.owner = newOwner; state.moved = true; return structuredClone(state); }
-  use(name, owner) { const state = this.#state(name); if (state.moved && state.owner !== owner) throw new Error(`use after move: '${name}' is owned by ${state.owner}`); return true; }
-  #state(name) { const state = this.values.get(name); if (!state) throw new Error(`unknown owned value: ${name}`); return state; }
-  #assertLive(state) { if (state.moved) throw new Error(`value '${state.name}' was moved`); }
 }
 
 export class Region {
