@@ -100,17 +100,28 @@ export const SafetyProfiles = Object.freeze({
 });
 
 export function validateSafetyProfile(program, profileName) {
-  const profile = SafetyProfiles[profileName]; if (!profile) throw new Error(`unknown safety profile: ${profileName}`);
+  const profile = SafetyProfiles[profileName];
+  if (!profile) throw new Error(`unknown safety profile: ${profileName}`);
+  if (!program || !Array.isArray(program.operations)) throw new TypeError('safety profile validation requires program.operations');
   const issues = [];
-  for (const operation of program.operations ?? []) {
+  for (const operation of program.operations) {
+    if (!operation || typeof operation.kind !== 'string') {
+      issues.push({ code: 'CP-SAFE-000', operation, message: 'safety-profile operations require an explicit kind' });
+      continue;
+    }
     if (profile.forbidUnsafe && operation.kind === 'unsafe') issues.push({ code: 'CP-SAFE-001', operation, message: 'unsafe operations are forbidden by this profile' });
     if (profile.forbidBlockingIO && operation.kind === 'blocking-io') issues.push({ code: 'CP-SAFE-002', operation, message: 'blocking I/O is forbidden by this profile' });
     if (profile.forbidDynamicAllocationAfterInit && operation.kind === 'allocate' && operation.phase !== 'init') issues.push({ code: 'CP-SAFE-003', operation, message: 'dynamic allocation after initialization is forbidden' });
     if (profile.requireBoundedLoops && operation.kind === 'loop' && operation.bound == null) issues.push({ code: 'CP-SAFE-004', operation, message: 'loop requires a statically known bound' });
+    if (profile.forbidExceptions && (operation.kind === 'throw' || operation.kind === 'exception')) issues.push({ code: 'CP-SAFE-005', operation, message: 'exceptions are forbidden by this profile' });
+    if (profile.requireCheckedConversions && operation.kind === 'conversion' && operation.checked !== true) issues.push({ code: 'CP-SAFE-006', operation, message: 'conversion must be explicitly checked by this profile' });
+    if (profile.requireBoundedLatency && (operation.kind === 'unbounded-latency' || operation.boundedLatency === false)) issues.push({ code: 'CP-SAFE-007', operation, message: 'operation requires a declared bounded-latency contract' });
+    if (profile.requireExplicitWidths && operation.kind === 'numeric-type' && operation.width == null && !explicitWidthName(operation.type)) issues.push({ code: 'CP-SAFE-008', operation, message: 'numeric type requires an explicit width by this profile' });
   }
   return { ok: issues.length === 0, profile: profileName, issues };
 }
 
+function explicitWidthName(value){return typeof value==='string'&&/^(?:[iu](?:8|16|32|64)|f(?:32|64))$/.test(value);}
 function sameType(a,b){return JSON.stringify(a)===JSON.stringify(b);}
 function displayType(t){if(!t)return'unknown';if(t.name&&BuiltinType[t.name])return t.name;if(t.kind==='nullable')return `${displayType(t.inner)}?`;if(t.kind==='pointer')return `*${t.mutable?'mut':'const'} ${displayType(t.to)}`;if(t.kind==='generic-instance')return `${t.name}<${t.args.map(displayType).join(', ')}>`;return t.name??t.kind;}
 function splitTypeArgs(text){const out=[];let depth=0,start=0;for(let i=0;i<text.length;i++){const c=text[i];if(c==='<')depth++;else if(c==='>')depth--;else if(c===','&&depth===0){out.push(text.slice(start,i).trim());start=i+1;}}out.push(text.slice(start).trim());return out.filter(Boolean);}
