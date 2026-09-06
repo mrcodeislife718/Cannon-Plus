@@ -110,3 +110,29 @@ test('embedded realtime and safety profiles deterministically reject forbidden o
   assert.equal(realtime.ok, false);
   assert.deepEqual(realtime.issues.map((issue) => issue.code), ['CP-SAFE-002','CP-SAFE-003']);
 });
+
+test('declared safety profile guarantees are enforced rather than advisory', () => {
+  const embedded = validateSafetyProfile({ operations: [
+    { kind: 'throw' },
+    { kind: 'numeric-type', type: 'int' }
+  ] }, 'embedded');
+  assert.deepEqual(embedded.issues.map((issue) => issue.code), ['CP-SAFE-005','CP-SAFE-008']);
+
+  const realtime = validateSafetyProfile({ operations: [
+    { kind: 'unbounded-latency' },
+    { kind: 'numeric-type', type: 'f32' }
+  ] }, 'realtime');
+  assert.deepEqual(realtime.issues.map((issue) => issue.code), ['CP-SAFE-007']);
+
+  const safety = validateSafetyProfile({ operations: [
+    { kind: 'conversion', checked: false },
+    { kind: 'numeric-type', width: 32 }
+  ] }, 'safety');
+  assert.deepEqual(safety.issues.map((issue) => issue.code), ['CP-SAFE-006']);
+});
+
+test('safety profile validator rejects operations without explicit semantic kind', () => {
+  const result = validateSafetyProfile({ operations: [{}] }, 'safety');
+  assert.equal(result.ok, false);
+  assert.equal(result.issues[0].code, 'CP-SAFE-000');
+});
