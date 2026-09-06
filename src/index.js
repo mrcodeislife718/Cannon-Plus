@@ -248,3 +248,4 @@ export function transform(source) {
 
 export function check(source) { return transform(source); }
 export * from './systems.js';
+export { OwnershipTracker } from './ownership.js';
